@@ -1,0 +1,112 @@
+import pandas as pd
+import numpy as np
+from sklearn.preprocessing import MinMaxScaler
+from sklearn.metrics import r2_score
+from tensorflow.python.keras.models import Sequential
+from tensorflow.python.keras.layers import Dense, LSTM
+from tensorflow.python.keras.callbacks import Callback
+from tensorflow.python.keras.models import load_model
+import matplotlib.pyplot as plt
+
+path = r'C:\Users\HP\Documents\DS\datasets\Binance_1min_candlesticks\BTC-USDT.parquet'
+data = pd.read_parquet(path)
+
+data = data.head(2000000)
+data = data.tail(1000)
+
+
+
+data = data['close'].values.reshape(-1, 1)
+
+# Scale data
+scaler = MinMaxScaler()
+data = scaler.fit_transform(data)
+
+model = load_model(r"C:\Users\HP\Documents\DS\baigiamasis\trained_models\LSTM_1\batch_128\25-1___10-5_forward_1\epoch10.h5")
+
+context_size = 25
+steps_forward = 1
+
+preds_and_reals = []
+
+total_preds = len(data) - context_size - steps_forward
+i = 0
+
+while i < len(data) - context_size - steps_forward - 1:
+    context = data[i:i + context_size].reshape(1, context_size, 1)
+
+    prediction = model.predict(context)
+    prediction = list(scaler.inverse_transform(prediction))[0].tolist()[0]
+
+    prediction_right = list(scaler.inverse_transform(data[i + context_size:i + context_size + steps_forward].reshape(-1, 1)))
+    prediction_right = [arr[0] for arr in prediction_right]
+    real = prediction_right[-1]
+    total = [prediction, real]
+    print(str(i) + '/' + str(total_preds))
+
+    if prediction > real:
+        total.append(1)
+    else:
+        total.append(0)
+
+    preds_and_reals.append(total)
+
+    i += 1
+
+print(preds_and_reals)
+
+preds = [sublist[0] for sublist in preds_and_reals]
+reals = [sublist[1] for sublist in preds_and_reals]
+signal = [sublist[2] for sublist in preds_and_reals]
+
+# ######################################
+
+# sukurti realu backtest'inima (pirkimas, pardavimas)
+buy = 0
+
+buys = []
+
+for i in range(len(reals)):
+    if buy == 0 and signal[i] == 1:
+        buy = 1
+        buys.append([reals[i]])
+    if buy == 1 and signal[i] == 0:
+        buy = 0
+        buys[-1].append(reals[i])
+
+print(buys)
+
+differences = []
+
+for i in range(len(buys)-1):
+    dif = buys[i][0]/buys[i][1]
+    differences.append(dif)
+print(differences)
+
+start_capital = 1
+print('start capital: ' + str(round(start_capital, 4)))
+for element in differences:
+    start_capital = start_capital * element
+print('end capital: ' + str(round(start_capital, 4)))
+
+holding_value = reals[0]/reals[-1]
+print('holding value: ' + str(round(holding_value, 4)))
+
+print('number of buys: ' + str(len(differences)))
+average_profitability = sum(differences)/len(differences)
+print('average profitability: ' + str(round(average_profitability, 4)))
+
+
+data = differences
+
+# Plotting the histogram
+plt.hist(data, bins='auto', color='blue', alpha=0.7, rwidth=0.85)
+
+# Customizing the plot
+plt.grid(axis='y', alpha=0.5)
+plt.xlabel('Values')
+plt.ylabel('Frequency')
+plt.title('Histogram of List Elements')
+
+# Displaying the histogram
+plt.show()
