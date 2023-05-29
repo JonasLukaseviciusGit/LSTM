@@ -61,7 +61,6 @@ signal = [sublist[2] for sublist in preds_and_reals]
 
 # ######################################
 
-# sukurti realu backtest'inima (pirkimas, pardavimas)
 buy = 0
 
 buys = []
