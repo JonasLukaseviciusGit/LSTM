@@ -1,0 +1,112 @@
+import pandas as pd
+import numpy as np
+from sklearn.preprocessing import MinMaxScaler
+from sklearn.metrics import r2_score
+from tensorflow.python.keras.models import Sequential
+from tensorflow.python.keras.layers import Dense, LSTM
+from tensorflow.python.keras.callbacks import Callback, ModelCheckpoint, CSVLogger
+import matplotlib.pyplot as plt
+
+# Load data
+path = r'C:\Users\HP\Documents\DS\datasets\Binance_1min_candlesticks\BTC-USDT.parquet'
+csv_path = r'C:\Users\HP\Documents\DS\baigiamasis\trained_models\LSTM\10th\10--3___10-100\epoch_results.csv'
+model_path = r"C:\Users\HP\Documents\DS\baigiamasis\trained_models\LSTM_1\units\100"
+
+data = pd.read_parquet(path)
+data = data.tail(10000).head(1000)  # sumazintas duomenu kiekis, paskui nuimti
+data = data['close'].values.reshape(-1, 1)
+
+num_epochs = 10
+
+# Scale data
+scaler = MinMaxScaler()
+data = scaler.fit_transform(data)
+
+# Define window size and output steps
+timesteps = 25  # 1000
+output_steps = 1  # Update to predict only the 10th price
+
+# Define LSTM model
+model = Sequential()
+model.add(LSTM(100, return_sequences=True, input_shape=(timesteps, 1)))
+model.add(LSTM(100, return_sequences=True))
+model.add(LSTM(100))
+model.add(Dense(1))  # Update output shape to predict only 1 value
+model.compile(optimizer='adam', loss='mse')
+
+# Define function to create input and output sequences
+def create_sequences(data, timesteps, output_steps):
+    x = []
+    y = []
+    for i in range(timesteps, len(data) - output_steps):
+        x.append(data[i - timesteps:i])
+        y.append(data[i + output_steps])
+    return np.array(x), np.array(y)
+
+# Split data into training and testing sets
+train_x, train_y = create_sequences(data, timesteps, output_steps)
+
+def adjusted_r_squared(y_true, y_pred, n, p):
+    r2 = r2_score(y_true, y_pred)
+    adj_r2 = 1 - ((1 - r2) * (n - 1)) / (n - p - 1)
+    return adj_r2
+
+# Define custom callback function to print loss and R-squared score
+# Define custom callback function to print loss and R-squared score
+class PrintEpochProgress(Callback):
+    results = []
+
+    def on_epoch_end(self, epoch, logs=None):
+        y_true = scaler.inverse_transform(train_y.reshape(-1, 1))
+        y_pred = scaler.inverse_transform(model.predict(train_x)[:, -1].reshape(-1, 1))  # Predict only the 10th price and reshape
+        n = len(y_true)
+        p = train_x.shape[1] * train_x.shape[2]
+        r2 = r2_score(y_true, y_pred.reshape(-1, 1))  # Reshape y_pred to (n, 1)
+        adj_r2 = adjusted_r_squared(y_true, y_pred.reshape(-1, 1), n, p)  # Reshape y_pred to (n, 1)
+        result = {
+            'Epoch': epoch + 1,
+            'Loss': logs['loss'],
+            'R-squared': r2,
+            'Adjusted R-squared': adj_r2
+        }
+        PrintEpochProgress.results.append(result)
+        print('Epoch: {}, Loss: {:.4f}, R-squared: {:.4f}, Adjusted R-squared: {:.4f}'.format(
+            epoch + 1, logs['loss'], r2, adj_r2))
+
+    def on_train_end(self, logs=None):
+        results_df = pd.DataFrame(PrintEpochProgress.results)
+        results_df.to_csv(csv_path, index=False)
+
+# Create the custom callback instance
+epoch_progress_callback = PrintEpochProgress()
+
+
+# Define checkpoint callback to save the model after each epoch
+checkpoint_path = model_path + r'\epoch{epoch}.h5'
+checkpoint_callback = ModelCheckpoint(checkpoint_path, save_weights_only=False)
+
+# Define CSV logger callback to save epoch results
+csv_logger = CSVLogger(csv_path, separator=',', append=True)
+
+# Create the custom callback instance
+epoch_progress_callback = PrintEpochProgress()
+
+# Train the model and print progress after each epoch
+model.fit(train_x, train_y, epochs=num_epochs, batch_size=128, callbacks=[epoch_progress_callback, checkpoint_callback])
+
+# Save the final trained model
+final_model_path = model_path + r'\final_model.h5'
+model.save(final_model_path)
+
+# Load the epoch results from the CSV file
+epoch_results = pd.read_csv(csv_path)
+
+# Plot the loss and R-squared curves
+plt.figure(figsize=(10, 6))
+plt.plot(epoch_results['Loss'], label='Loss')
+plt.plot(epoch_results['R-squared'], label='R-squared')
+plt.xlabel('Epoch')
+plt.ylabel('Value')
+plt.title('Training Progress')
+plt.legend()
+plt.show()
