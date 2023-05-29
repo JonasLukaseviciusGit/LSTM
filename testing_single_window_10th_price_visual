@@ -1,0 +1,51 @@
+import pandas as pd
+import numpy as np
+from sklearn.preprocessing import MinMaxScaler
+from sklearn.metrics import r2_score
+from tensorflow.python.keras.models import Sequential
+from tensorflow.python.keras.layers import Dense, LSTM
+from tensorflow.python.keras.callbacks import Callback
+from tensorflow.python.keras.models import load_model
+import matplotlib.pyplot as plt
+
+#Load model
+model = load_model(r"C:\Users\HP\Documents\DS\baigiamasis\trained_models\LSTM\10th\10--4___10-100\epoch5.h5")
+
+# Load data
+path = r'C:\Users\HP\Documents\DS\datasets\Binance_1min_candlesticks\BTC-USDT.parquet'
+data = pd.read_parquet(path)
+data = data.tail(1000)
+data = data['close'].values.reshape(-1, 1)
+
+# Scale data
+scaler = MinMaxScaler()
+data = scaler.fit_transform(data)
+
+context = data[:100].reshape(1, 100, 1)
+
+prediction = model.predict(context)
+
+prediction = list(scaler.inverse_transform(prediction))[0].tolist()
+
+prediction_right = list(scaler.inverse_transform(data[100:110].reshape(-1, 1)))
+prediction_right = [arr[0] for arr in prediction_right]
+
+prediction = prediction * 10
+print(prediction)
+print(prediction_right)
+
+x = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+# Plotting the lists
+plt.plot(x, prediction, label='predicted')
+plt.plot(x, prediction_right, label='real')
+
+# Adding labels and title
+plt.xlabel('X-axis')
+plt.ylabel('Y-axis')
+plt.title('Plot of Two Lists')
+
+# Adding a legend
+plt.legend()
+
+# Displaying the plot
+plt.show()
