@@ -52,7 +52,6 @@ def adjusted_r_squared(y_true, y_pred, n, p):
     return adj_r2
 
 # Define custom callback function to print loss and R-squared score
-# Define custom callback function to print loss and R-squared score
 class PrintEpochProgress(Callback):
     results = []
 
