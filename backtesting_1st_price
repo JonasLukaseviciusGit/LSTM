@@ -11,7 +11,7 @@ import matplotlib.pyplot as plt
 path = r'C:\Users\HP\Documents\DS\datasets\Binance_1min_candlesticks\BTC-USDT.parquet'
 data = pd.read_parquet(path)
 
-data = data.head(2000000+1000+1000+1000)
+data = data.head(2000000)
 data = data.tail(1000)
 
 data = data['close'].values.reshape(-1, 1)
@@ -20,10 +20,10 @@ data = data['close'].values.reshape(-1, 1)
 scaler = MinMaxScaler()
 data = scaler.fit_transform(data)
 
-model = load_model(r"C:\Users\HP\Documents\DS\baigiamasis\trained_models\LSTM\10th\10--4___10-100\epoch5.h5")
+model = load_model(r"C:\Users\HP\Documents\DS\baigiamasis\trained_models\LSTM_1\batch_64\10--4___forward_1\epoch10.h5")
 
 context_size = 100
-steps_forward = 10
+steps_forward = 1
 
 preds_and_reals = []
 
@@ -57,7 +57,6 @@ signal = [sublist[2] for sublist in preds_and_reals]
 
 # ######################################
 
-# sukurti realu backtest'inima (pirkimas, pardavimas)
 buy = 0
 
 buys = []
@@ -74,7 +73,7 @@ print(buys)
 
 differences = []
 
-for buy in buys:
+for buy in buys[:-2]:
     differences.append(buy[0]/buy[1])
 
 start_capital = 1
@@ -83,7 +82,7 @@ for element in differences:
     start_capital = start_capital * element
 print('end capital: ' + str(round(start_capital, 2)))
 
-holding_value = reals[-1]/reals[0]
+holding_value = reals[0]/reals[-1]
 print('holding value: ' + str(round(holding_value, 2)))
 
 
